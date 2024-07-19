@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구구단 풍선 게임</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #87CEEB;
+        }
+        #game-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        #game-area {
+            width: 100%;
+            height: 60vh;
+            border: 1px solid black;
+            position: relative;
+            overflow: hidden;
+            background-image: url('https://img.freepik.com/free-photo/white-cloud-blue-sky_74190-7709.jpg');
+            background-size: cover;
+            background-position: center;
+        }
+        .balloon {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.1s;
+        }
+        .balloon span {
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 2px 4px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 14px;
+            color: black;
+            box-shadow: 0 0 3px rgba(0,0,0,0.3);
+        }
+        .event-balloon {
+            background-color: black;
+        }
+        .event-balloon span {
+            color: white;
+        }
+        #top-line {
+            position: absolute;
+            top: 80px;
+            width: 100%;
+            height: 2px;
+            background-color: red;
+        }
+        #slingshot {
+            position: absolute;
+            right: -50px;
+            top: 50%;
+            width: 50px;
+            height: 50px;
+            background-image: url('https://www.pngmart.com/files/7/Slingshot-PNG-Pic.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+        .stone {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #333;
+            border-radius: 50%;
+        }
+        #input, #score, #time, #records {
+            margin-top: 10px;
+        }
+        @keyframes pop {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        #pause-btn {
+            margin-left: 10px;
+        }
+        .feedback {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            color: #FFD700;
+            text-shadow: 2px 2px 2px #000;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+        .bonus-score {
+            position: absolute;
+            font-size: 20px;
+            font-weight: bold;
+            color: red;
+            animation: floatUp 1s forwards;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-30px); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>구구단 풍선 게임</h1>
+        <select id="difficulty">
+            <option value="1">1단계 (2~5단)</option>
+            <option value="2">2단계 (6~9단)</option>
+            <option value="3">3단계 (2~9단)</option>
+        </select>
+        <select id="speed">
+            <option value="A">A 속도</option>
+            <option value="B">B 속도</option>
+            <option value="C">C 속도</option>
+        </select>
+        <button onclick="startGame()">게임 시작</button>
+        <div id="game-area">
+            <div id="top-line"></div>
+            <div id="slingshot"></div>
+        </div>
+        <div id="input">
+            <input type="text" id="player-name" placeholder="이름을 입력하세요">
+            <input type="number" id="answer" placeholder="답을 입력하세요">
+            <button id="pause-btn" onclick="togglePause()">일시정지</button>
+        </div>
+        <div id="score">점수: 0</div>
+        <div id="time">시간: 0초</div>
+        <div id="records">
+            <h3>최고 기록</h3>
+            <ol id="top-records"></ol>
+        </div>
+    </div>
+
+    <audio id="pop-sound" src="https://www.soundjay.com/misc/sounds/balloon-popping-1.mp3"></audio>
+    <audio id="cheer-sound" src="https://www.soundjay.com/human/sounds/applause-01.mp3"></audio>
+    <audio id="wow-sound" src="https://www.soundjay.com/human/sounds/man-says-wow-1.mp3"></audio>
+
+    <script>
+        let gameInterval;
+        let currentProblems = [];
+        let score = 0;
+        let startTime;
+        let timerInterval;
+        let records = [];
+        let isGameRunning = false;
+        let isPaused = false;
+        let balloonCount = 0;
+        let currentFeedback = null;
+        const gameArea = document.getElementById('game-area');
+        const gameWidth = gameArea.offsetWidth;
+        const gameHeight = gameArea.offsetHeight;
+        const topLineY = 80;
+
+        function loadRecords() {
+            const savedRecords = localStorage.getItem('gugudan_records');
+            if (savedRecords) {
+                records = JSON.parse(savedRecords);
+                updateRecordsDisplay();
+            }
+        }
+
+        function saveRecords() {
+            localStorage.setItem('gugudan_records', JSON.stringify(records));
+        }
+
+        function startGame() {
+            if (isGameRunning) return;
+            const playerName = document.getElementById('player-name').value;
+            if (!playerName) {
+                alert("이름을 입력해주세요!");
+                return;
+            }
+            isGameRunning = true;
+            isPaused = false;
+            resetGame();
+            gameInterval = setInterval(createBalloon, 2000);
+            timerInterval = setInterval(updateTime, 1000);
+        }
+
+        function resetGame() {
+            clearInterval(gameInterval);
+            clearInterval(timerInterval);
+            document.getElementById('game-area').innerHTML = '<div id="top-line"></div><div id="slingshot"></div>';
+            currentProblems = [];
+            score = 0;
+            balloonCount = 0;
+            startTime = Date.now();
+            updateScore();
+            updateTime();
+        }
+
+        function createBalloon() {
+            if (isPaused) return;
+            const balloon = document.createElement('div');
+            balloon.className = 'balloon';
+
+            const difficulty = document.getElementById('difficulty').value;
+            const speed = document.getElementById('speed').value;
+            let num1, num2;
+
+            if (difficulty === '1') {
+                num1 = Math.floor(Math.random() * 4) + 2;
+                num2 = Math.floor(Math.random() * 9) + 1;
+            } else if (difficulty === '2') {
+                num1 = Math.floor(Math.random() * 4) + 6;
+                num2 = Math.floor(Math.random() * 9) + 1;
+            } else {
+                num1 = Math.floor(Math.random() * 8) + 2;
+                num2 = Math.floor(Math.random() * 9) + 1;
+            }
+
+            let isEventBalloon = false;
+            let eventScore = 1;
+            balloonCount++;
+            if (balloonCount % 4 === 0) {
+                isEventBalloon = true;
+                eventScore = Math.floor(Math.random() * 4) + 2; // 2~5점
+                balloon.classList.add('event-balloon');
+            }
+
+            const problem = { num1, num2, result: num1 * num2, element: balloon, isEvent: isEventBalloon, eventScore: eventScore };
+            currentProblems.push(problem);
+            balloon.innerHTML = `<span>${num1} x ${num2}</span>`;
+
+            if (!isEventBalloon) {
+                const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E', '#6C5CE7', '#55E6C1'];
+                const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                balloon.style.backgroundColor = randomColor;
+            }
+
+            let position = getRandomPosition();
+            balloon.style.left = `${position.x}px`;
+            balloon.style.bottom = `-60px`;
+            gameArea.appendChild(balloon);
+
+            let rise = setInterval(() => {
+                if (!isGameRunning || isPaused) {
+                    return;
+                }
+                let bottom = parseInt(balloon.style.bottom);
+                let top = gameHeight - bottom - 60;
+                if (top <= topLineY) {
+                    clearInterval(rise);
+                    balloon.remove();
+                    currentProblems = currentProblems.filter(p => p.element !== balloon);
+                } else {
+                    let increment = 1;
+                    if (speed === 'B') increment = 1.5;
+                    if (speed === 'C') increment = 2;
+                    if (difficulty === '3') increment *= 2;
+                    balloon.style.bottom = `${bottom + increment}px`;
+                }
+            }, 50);
+        }
+
+        function getRandomPosition() {
+            let x, y;
+            let overlap;
+            do {
+                overlap = false;
+                x = Math.random() * (gameWidth - 60);
+                y = Math.random() * (gameHeight - 60);
+                for (let problem of currentProblems) {
+                    let rect1 = {x: x, y: y, width: 60, height: 60};
+                    let rect2 = problem.element.getBoundingClientRect();
+                    if (rect1.x < rect2.x + rect2.width &&
+                        rect1.x + rect1.width > rect2.x &&
+                        rect1.y < rect2.y + rect2.height &&
+                        rect1.y + rect1.height > rect2.y) {
+                        overlap = true;
+                        break;
+                    }
+                }
+            } while (overlap);
+            return {x, y};
+        }
+
+        function checkAnswer() {
+            if (!isGameRunning || isPaused) return;
+            const userAnswer = parseInt(document.getElementById('answer').value);
+            const correctProblem = currentProblems.find(p => p.result === userAnswer);
+            if (correctProblem) {
+                if (correctProblem.isEvent) {
+                    score += correctProblem.eventScore;
+                    showBonusScore(correctProblem.element, correctProblem.eventScore);
+                    playSound('wow-sound');
+                } else {
+                    score++;
+                }
+                updateScore();
+                if (score % 5 === 0) {
+                    playSound('cheer-sound');
+                }
+                shootStone(correctProblem.element);
+                currentProblems = currentProblems.filter(p => p !== correctProblem);
+                showFeedback(correctProblem.isEvent ? correctProblem.eventScore : 1);
+            }
+            document.getElementById('answer').value = '';
+        }
+
+        function shootStone(target) {
+            const stone = document.createElement('div');
+            stone.className = 'stone';
+            stone.style.right = '0px';
+            stone.style.top = '50%';
+            gameArea.appendChild(stone);
+
+            const targetRect = target.getBoundingClientRect();
+            const gameAreaRect = gameArea.getBoundingClientRect();
+            const targetX = targetRect.left - gameAreaRect.left + targetRect.width / 2;
+            const targetY = targetRect.top - gameAreaRect.top + targetRect.height / 2;
+
+            const animation = stone.animate([
+                { right: '0px', top: '50%' },
+                { right: `${gameWidth - targetX}px`, top: `${targetY}px` }
+            ], {
+                duration: 300,
+                easing: 'ease-out'
+            });
+
+            animation.onfinish = () => {
+                stone.remove();
+                popBalloon(target);
+            };
+        }
+
+        function popBalloon(target) {
+            target.style.animation = 'pop 0.5s forwards';
+            playSound('pop-sound');
+            setTimeout(() => {
+                target.remove();
+            }, 500);
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = `점수: ${score}`;
+        }
+
+        function updateTime() {
+            if (!isPaused) {
+                const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+                document.getElementById('time').textContent = `시간: ${elapsedTime}초`;
+                if (elapsedTime >= 60) {
+                    endGame();
+                }
+            }
+        }
+
+        function endGame() {
+            isGameRunning = false;
+            clearInterval(gameInterval);
+            clearInterval(timerInterval);
+            const playerName = document.getElementById('player-name').value;
+            alert(`게임 종료! ${playerName}님의 최종 점수: ${score}`);
+            updateRecords(playerName, score);
+            resetGame();
+        }
+
+        function updateRecords(playerName, finalScore) {
+            records.push({name: playerName, score: finalScore});
+            records.sort((a, b) => b.score - a.score);
+            records = records.slice(0, 3);
+            updateRecordsDisplay();
+            saveRecords();
+        }
+
+        function updateRecordsDisplay() {
+            const topRecords = document.getElementById('top-records');
+            topRecords.innerHTML = '';
+            const medals = ['🥇', '🥈', '🥉'];
+            records.forEach((record, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${medals[index]} ${record.name}: ${record.score}점`;
+                topRecords.appendChild(li);
+            });
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const pauseBtn = document.getElementById('pause-btn');
+            pauseBtn.textContent = isPaused ? "계속하기" : "일시정지";
+        }
+
+        function showFeedback(points) {
+            if (currentFeedback) {
+                currentFeedback.remove();
+            }
+            const feedbacks = [
+                "멋져!",
+                "대박!",
+                "훌륭해!",
+                "천재!",
+                "완벽해!",
+                "대단해!",
+                "굉장해!",
+                "놀라워!",
+                "끝내줘!",
+                "최고야!",
+                "와우!",
+                "믿을 수 없어!",
+                "굿!",
+                "환상적!"
+            ];
+            const feedback = document.createElement('div');
+            feedback.className = 'feedback';
+            feedback.textContent = `${feedbacks[Math.floor(Math.random() * feedbacks.length)]} +${points}점!`;
+            gameArea.appendChild(feedback);
+            currentFeedback = feedback;
+        }
+
+        function showBonusScore(target, score) {
+            const bonusScore = document.createElement('div');
+            bonusScore.className = 'bonus-score';
+            bonusScore.textContent = `+${score}`;
+            bonusScore.style.left = target.style.left;
+            bonusScore.style.top = target.style.top;
+            gameArea.appendChild(bonusScore);
+            setTimeout(() => bonusScore.remove(), 1000);
+        }
+
+        function playSound(id) {
+            const sound = document.getElementById(id);
+            sound.currentTime = 0;
+            sound.play();
+        }
+
+        document.getElementById('answer').addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                checkAnswer();
+            }
+        });
+
+        // 페이지 로드 시 기록 불러오기
+        window.onload = loadRecords;
+    </script>
+</body>
+</html>
