@@ -13,16 +13,25 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             min-height: 100vh;
         }
         #game-container {
             width: 100%;
             max-width: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+        #game-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
         }
         #game-area {
             width: 100%;
-            height: 50vh;
+            height: 60vh;
             border: 1px solid black;
             position: relative;
             overflow: hidden;
@@ -55,12 +64,13 @@
         .event-balloon span {
             color: white;
         }
-        #top-line {
+        #bottom-line {
             position: absolute;
-            top: 60px;
+            bottom: 60px;
             width: 100%;
             height: 2px;
             background-color: red;
+}
         }
         #slingshot {
             position: absolute;
@@ -79,12 +89,17 @@
             background-color: #333;
             border-radius: 50%;
         }
-        #input, #score, #time, #records {
+        #input, #game-info, #records {
             margin-top: 10px;
+        }
+        #game-info {
+            display: flex;
+            justify-content: space-between;
         }
         input, select, button {
             font-size: 16px;
             padding: 5px;
+            margin: 2px;
         }
         @keyframes pop {
             0% { transform: scale(1); opacity: 1; }
@@ -115,35 +130,47 @@
             0% { transform: translateY(0); opacity: 1; }
             100% { transform: translateY(-30px); opacity: 0; }
         }
+        @media (max-height: 600px) {
+            #game-area {
+                height: 50vh;
+            }
+            #game-info, #records {
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 <body>
     <div id="game-container">
         <h1>구구단 풍선 게임</h1>
-        <select id="difficulty">
-            <option value="1">1단계 (2~5단)</option>
-            <option value="2">2단계 (6~9단)</option>
-            <option value="3">3단계 (2~9단)</option>
-        </select>
-        <select id="speed">
-            <option value="easy">쉬움</option>
-            <option value="medium">중간</option>
-            <option value="hard">어려움</option>
-            <option value="extreme">극악</option>
-            <option value="hell">지옥</option>
-        </select>
-        <button onclick="startGame()">게임 시작</button>
+        <div id="game-controls">
+            <input type="text" id="player-name" placeholder="이름을 입력하세요">
+            <select id="difficulty">
+                <option value="1">1단계 (2~5단)</option>
+                <option value="2">2단계 (6~9단)</option>
+                <option value="3">3단계 (2~9단)</option>
+            </select>
+            <select id="speed">
+                <option value="easy">쉬움</option>
+                <option value="medium">중간</option>
+                <option value="hard">어려움</option>
+                <option value="extreme">극악</option>
+                <option value="hell">지옥</option>
+            </select>
+            <button onclick="startGame()">게임 시작</button>
+        </div>
         <div id="game-area">
-            <div id="top-line"></div>
+            <div id="bottom-line"></div>
             <div id="slingshot"></div>
         </div>
         <div id="input">
-            <input type="text" id="player-name" placeholder="이름을 입력하세요">
             <input type="number" id="answer" placeholder="답을 입력하세요">
             <button id="pause-btn" onclick="togglePause()">일시정지</button>
         </div>
-        <div id="score">점수: 0</div>
-        <div id="time">시간: 0초</div>
+        <div id="game-info">
+            <div id="score">점수: 0</div>
+            <div id="time">시간: 0초</div>
+        </div>
         <div id="records">
             <h3>최고 기록</h3>
             <ol id="top-records"></ol>
@@ -249,32 +276,35 @@
 
             let position = getRandomPosition();
             balloon.style.left = `${position.x}px`;
-            balloon.style.bottom = `-50px`;
+            balloon.style.top = '-50px';
             gameArea.appendChild(balloon);
 
-            let rise = setInterval(() => {
+            let fall = setInterval(() => {
                 if (!isGameRunning || isPaused) {
                     return;
-                }
-                let bottom = parseInt(balloon.style.bottom);
-                let top = gameHeight - bottom - 50;
-                if (top <= topLineY) {
-                    clearInterval(rise);
-                    balloon.remove();
-                    currentProblems = currentProblems.filter(p => p.element !== balloon);
-                } else {
-                    let increment = 0.5;
-                    switch (speed) {
-                        case 'medium': increment = 1; break;
-                        case 'hard': increment = 2; break;
-                        case 'extreme': increment = 4; break;
-                        case 'hell': increment = 8; break;
-                    }
-                    if (difficulty === '3') increment *= 2;
-                    balloon.style.bottom = `${bottom + increment}px`;
-                }
-            }, 50);
         }
+        let top = parseInt(balloon.style.top);
+        if (top >= gameHeight - 50) {
+            clearInterval(fall);
+            balloon.remove();
+            currentProblems = currentProblems.filter(p => p.element !== balloon);
+        } else {
+            let increment = 0.5;
+            switch (speed) {
+                case 'medium': increment = 1; break;
+                case 'hard': increment = 2; break;
+                case 'extreme': increment = 4; break;
+                case 'hell': increment = 8; break;
+            }
+            if (difficulty === '3') increment *= 2;
+            balloon.style.top = `${top + increment}px`;
+            if (top + 50 >= gameHeight - 60 && !balloon.classList.contains('crossed-line')) {
+                balloon.classList.add('crossed-line');
+                decreaseHealth();
+            }
+        }
+    }, 50);
+}
 
         function getRandomPosition() {
             let x, y;
@@ -359,13 +389,21 @@
             document.getElementById('score').textContent = `점수: ${score}`;
         }
 
+        function decreaseHealth() {
+            // 여기서 체력 감소 로직을 구현합니다.
+            // 예를 들어, 체력이 0이 되면 게임을 종료합니다.
+            if (health <= 0) {
+                endGame();
+            }
+        }
+
         function updateTime() {
             if (!isPaused) {
                 const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
                 document.getElementById('time').textContent = `시간: ${elapsedTime}초`;
                 if (elapsedTime >= 60) {
                     endGame();
-                }
+					}
             }
         }
 
