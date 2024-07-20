@@ -2,41 +2,42 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>구구단 풍선 게임</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            height: -webkit-fill-available;
-            background-color: #87CEEB;
-        }
-        #game-setup {
             padding: 10px;
+            background-color: #87CEEB;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
         }
         #game-container {
-            display: none;
+            width: 100%;
+            max-width: 600px;
+            display: flex;
             flex-direction: column;
-            height: 100%;
+        }
+        #game-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
         }
         #game-area {
-            flex-grow: 1;
+            width: 100%;
+            height: 60vh;
+            border: 1px solid black;
             position: relative;
             overflow: hidden;
             background-image: url('https://img.freepik.com/free-photo/white-cloud-blue-sky_74190-7709.jpg');
             background-size: cover;
             background-position: center;
-        }
-        #input-area {
-            padding: 10px;
-            background-color: #f0f0f0;
         }
         .balloon {
             position: absolute;
@@ -80,10 +81,17 @@
             background-color: #333;
             border-radius: 50%;
         }
+        #input, #game-info, #records {
+            margin-top: 10px;
+        }
+        #game-info {
+            display: flex;
+            justify-content: space-between;
+        }
         input, select, button {
             font-size: 16px;
             padding: 5px;
-            margin: 5px;
+            margin: 2px;
         }
         @keyframes firework {
             0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(255, 165, 0, 0.5), 0 0 0 0 rgba(255, 0, 0, 0.5), 0 0 0 0 rgba(0, 255, 0, 0.5), 0 0 0 0 rgba(0, 0, 255, 0.5); }
@@ -93,6 +101,9 @@
             0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5); }
             50% { transform: scale(1.5); opacity: 0.7; box-shadow: 0 0 20px 10px rgba(255, 255, 255, 0.7); }
             100% { transform: scale(2); opacity: 0; box-shadow: 0 0 40px 20px rgba(255, 255, 255, 0); }
+        }
+        #pause-btn {
+            margin-left: 10px;
         }
         .feedback {
             position: absolute;
@@ -116,38 +127,49 @@
             0% { transform: translateY(0); opacity: 1; }
             100% { transform: translateY(-30px); opacity: 0; }
         }
+        @media (max-height: 600px) {
+            #game-area {
+                height: 40vh;
+            }
+            #game-info, #records {
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div id="game-setup">
-        <h1>구구단 풍선 게임</h1>
-        <input type="text" id="player-name" placeholder="이름을 입력하세요">
-        <select id="difficulty">
-            <option value="1">1단계 (2~5단)</option>
-            <option value="2">2단계 (6~9단)</option>
-            <option value="3">3단계 (2~9단)</option>
-        </select>
-        <select id="speed">
-            <option value="easy">쉬움</option>
-            <option value="medium">중간</option>
-            <option value="hard">어려움</option>
-            <option value="extreme">극악</option>
-            <option value="hell">지옥</option>
-        </select>
-        <button onclick="startGame()">게임 시작</button>
-    </div>
-
     <div id="game-container">
+        <h1>구구단 풍선 게임</h1>
+        <div id="game-controls">
+            <input type="text" id="player-name" placeholder="이름을 입력하세요">
+            <select id="difficulty">
+                <option value="1">1단계 (2~5단)</option>
+                <option value="2">2단계 (6~9단)</option>
+                <option value="3">3단계 (2~9단)</option>
+            </select>
+            <select id="speed">
+                <option value="easy">쉬움</option>
+                <option value="medium">중간</option>
+                <option value="hard">어려움</option>
+                <option value="extreme">극악</option>
+                <option value="hell">지옥</option>
+            </select>
+            <button onclick="startGame()">게임 시작</button>
+        </div>
         <div id="game-area">
             <div id="slingshot"></div>
         </div>
-        <div id="input-area">
+        <div id="input">
             <input type="number" id="answer" placeholder="답을 입력하세요">
             <button id="pause-btn" onclick="togglePause()">일시정지</button>
-            <div id="game-info">
-                <span id="score">점수: 0</span>
-                <span id="time">시간: 60초</span>
-            </div>
+        </div>
+        <div id="game-info">
+            <div id="score">점수: 0</div>
+            <div id="time">시간: 60초</div>
+        </div>
+        <div id="records">
+            <h3>최고 기록</h3>
+            <ol id="top-records"></ol>
         </div>
     </div>
 
@@ -168,8 +190,20 @@
         let currentFeedback = null;
         let missedBalloons = 0;
         const gameArea = document.getElementById('game-area');
-        const gameSetup = document.getElementById('game-setup');
-        const gameContainer = document.getElementById('game-container');
+        const gameWidth = gameArea.offsetWidth;
+        const gameHeight = gameArea.offsetHeight;
+
+        function loadRecords() {
+            const savedRecords = localStorage.getItem('gugudan_records');
+            if (savedRecords) {
+                records = JSON.parse(savedRecords);
+                updateRecordsDisplay();
+            }
+        }
+
+        function saveRecords() {
+            localStorage.setItem('gugudan_records', JSON.stringify(records));
+        }
 
         function startGame() {
             if (isGameRunning) return;
@@ -181,8 +215,6 @@
             isGameRunning = true;
             isPaused = false;
             resetGame();
-            gameSetup.style.display = 'none';
-            gameContainer.style.display = 'flex';
             gameInterval = setInterval(createBalloon, 2000);
             timerInterval = setInterval(updateTime, 1000);
             startTime = Date.now();
@@ -255,7 +287,7 @@
             let fall = setInterval(() => {
                 if (!isGameRunning || isPaused) return;
                 let top = parseInt(balloon.style.top);
-                if (top >= gameArea.clientHeight - 50) { // 화면 하단에 닿았을 때
+                if (top >= gameHeight - 50) { // 화면 하단에 닿았을 때
                     clearInterval(fall);
                     balloon.remove();
                     currentProblems = currentProblems.filter(p => p.element !== balloon);
@@ -275,8 +307,6 @@
         }
 
         function getRandomPosition() {
-            const gameWidth = gameArea.clientWidth;
-            const gameHeight = gameArea.clientHeight;
             let x, y;
             let overlap;
             do {
@@ -326,7 +356,7 @@
 
             const animation = stone.animate([
                 { right: '0px', top: '50%' },
-                { right: `${gameAreaRect.width - targetX}px`, top: `${targetY}px` }
+                { right: `${gameWidth - targetX}px`, top: `${targetY}px` }
             ], {
                 duration: 300,
                 easing: 'ease-out'
@@ -383,19 +413,25 @@
             alert(`게임 종료! ${playerName}님의 최종 점수: ${finalScore}`);
             updateRecords(playerName, finalScore);
             resetGame();
-            gameSetup.style.display = 'flex';
-            gameContainer.style.display = 'none';
         }
 
         function updateRecords(playerName, finalScore) {
             records.push({name: playerName, score: finalScore});
             records.sort((a, b) => b.score - a.score);
             records = records.slice(0, 3);
+            updateRecordsDisplay();
             saveRecords();
         }
 
-        function saveRecords() {
-            localStorage.setItem('gugudan_records', JSON.stringify(records));
+        function updateRecordsDisplay() {
+            const topRecords = document.getElementById('top-records');
+            topRecords.innerHTML = '';
+            const medals = ['🥇', '🥈', '🥉'];
+            records.forEach((record, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${medals[index]} ${record.name}: ${record.score}점`;
+                topRecords.appendChild(li);
+            });
         }
 
         function togglePause() {
@@ -473,10 +509,7 @@
 
         // 페이지 로드 시 기록 불러오기 및 게임 영역 크기 조정
         window.onload = () => {
-            const savedRecords = localStorage.getItem('gugudan_records');
-            if (savedRecords) {
-                records = JSON.parse(savedRecords);
-            }
+            loadRecords();
             resizeGameArea();
         };
     </script>
