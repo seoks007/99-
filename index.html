@@ -64,13 +64,6 @@
         .event-balloon span {
             color: white;
         }
-        #bottom-line {
-            position: absolute;
-            bottom: 50px;
-            width: 100%;
-            height: 2px;
-            background-color: red;
-        }
         #slingshot {
             position: absolute;
             right: -30px;
@@ -100,9 +93,14 @@
             padding: 5px;
             margin: 2px;
         }
-        @keyframes pop {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(1.5); opacity: 0; }
+        @keyframes firework {
+            0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(255, 165, 0, 0.5), 0 0 0 0 rgba(255, 0, 0, 0.5), 0 0 0 0 rgba(0, 255, 0, 0.5), 0 0 0 0 rgba(0, 0, 255, 0.5); }
+            100% { transform: scale(2); opacity: 0; box-shadow: -50px -50px 0 0 rgba(255, 165, 0, 0), 50px -50px 0 0 rgba(255, 0, 0, 0), -50px 50px 0 0 rgba(0, 255, 0, 0), 50px 50px 0 0 rgba(0, 0, 255, 0); }
+        }
+        @keyframes eventFirework {
+            0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5); }
+            50% { transform: scale(1.5); opacity: 0.7; box-shadow: 0 0 20px 10px rgba(255, 255, 255, 0.7); }
+            100% { transform: scale(2); opacity: 0; box-shadow: 0 0 40px 20px rgba(255, 255, 255, 0); }
         }
         #pause-btn {
             margin-left: 10px;
@@ -111,7 +109,7 @@
             position: absolute;
             font-size: 20px;
             font-weight: bold;
-            color: #FFD700;
+            color: yellow;
             text-shadow: 2px 2px 2px #000;
             top: 30px;
             left: 50%;
@@ -122,7 +120,7 @@
             position: absolute;
             font-size: 16px;
             font-weight: bold;
-            color: red;
+            color: yellow;
             animation: floatUp 1s forwards;
         }
         @keyframes floatUp {
@@ -131,7 +129,7 @@
         }
         @media (max-height: 600px) {
             #game-area {
-                height: 50vh;
+                height: 40vh;
             }
             #game-info, #records {
                 font-size: 14px;
@@ -159,7 +157,6 @@
             <button onclick="startGame()">게임 시작</button>
         </div>
         <div id="game-area">
-            <div id="bottom-line"></div>
             <div id="slingshot"></div>
         </div>
         <div id="input">
@@ -168,7 +165,7 @@
         </div>
         <div id="game-info">
             <div id="score">점수: 0</div>
-            <div id="time">시간: 0초</div>
+            <div id="time">시간: 60초</div>
         </div>
         <div id="records">
             <h3>최고 기록</h3>
@@ -177,10 +174,8 @@
     </div>
 
     <audio id="pop-sound" src="https://www.soundjay.com/misc/sounds/balloon-popping-1.mp3"></audio>
+    <audio id="event-pop-sound" src="https://www.soundjay.com/misc/sounds/balloon-popping-2.mp3"></audio>
     <audio id="cheer-sound" src="https://www.soundjay.com/human/sounds/applause-01.mp3"></audio>
-    <audio id="wow-sound" src="https://www.soundjay.com/human/sounds/man-says-wow-1.mp3"></audio>
-    <audio id="event-sound" src="https://www.soundjay.com/human/sounds/cheering-6.mp3"></audio>
-    <audio id="congratulations-sound" src="https://www.soundjay.com/human/sounds/cheer-8.mp3"></audio>
 
     <script>
         let gameInterval;
@@ -193,6 +188,7 @@
         let isPaused = false;
         let balloonCount = 0;
         let currentFeedback = null;
+        let missedBalloons = 0;
         const gameArea = document.getElementById('game-area');
         const gameWidth = gameArea.offsetWidth;
         const gameHeight = gameArea.offsetHeight;
@@ -221,18 +217,19 @@
             resetGame();
             gameInterval = setInterval(createBalloon, 2000);
             timerInterval = setInterval(updateTime, 1000);
+            startTime = Date.now();
         }
 
         function resetGame() {
             clearInterval(gameInterval);
             clearInterval(timerInterval);
-            document.getElementById('game-area').innerHTML = '<div id="bottom-line"></div><div id="slingshot"></div>';
+            document.getElementById('game-area').innerHTML = '<div id="slingshot"></div>';
             currentProblems = [];
             score = 0;
             balloonCount = 0;
-            startTime = Date.now();
-            updateScore();
-            updateTime();
+            missedBalloons = 0;
+            updateScore(0);
+            document.getElementById('time').textContent = '시간: 60초';
         }
 
         function createBalloon() {
@@ -256,15 +253,23 @@
             }
 
             let isEventBalloon = false;
-            let eventScore = 1;
+            let eventScore;
             balloonCount++;
             if (balloonCount % 4 === 0) {
                 isEventBalloon = true;
-                eventScore = Math.floor(Math.random() * 4) + 2; // 2~5점
+                eventScore = difficulty === '3' ? Math.floor(Math.random() * 6) + 5 : Math.floor(Math.random() * 5) + 3;
                 balloon.classList.add('event-balloon');
             }
 
-            const problem = { num1, num2, result: num1 * num2, element: balloon, isEvent: isEventBalloon, eventScore: eventScore };
+            const problem = { 
+                num1, 
+                num2, 
+                result: num1 * num2, 
+                element: balloon, 
+                isEvent: isEventBalloon, 
+                eventScore: eventScore,
+                baseScore: difficulty === '3' ? 4 : 2
+            };
             currentProblems.push(problem);
             balloon.innerHTML = `<span>${num1} x ${num2}</span>`;
 
@@ -282,27 +287,23 @@
             let fall = setInterval(() => {
                 if (!isGameRunning || isPaused) return;
                 let top = parseInt(balloon.style.top);
-                if (top >= gameHeight - 50) {
+                if (top >= gameHeight - 50) { // 화면 하단에 닿았을 때
                     clearInterval(fall);
                     balloon.remove();
                     currentProblems = currentProblems.filter(p => p.element !== balloon);
+                    missedBalloons++;
                 } else {
-                    let increment = 0.5;
+                    let increment = 1;
                     switch (speed) {
-                        case 'medium': increment = 1; break;
-                        case 'hard': increment = 2; break;
+                        case 'medium': increment = 2; break;
+                        case 'hard': increment = 3; break;
                         case 'extreme': increment = 4; break;
-                        case 'hell': increment = 8; break;
+                        case 'hell': increment = 5; break;
                     }
                     if (difficulty === '3') increment *= 2;
                     balloon.style.top = `${top + increment}px`;
-                    if (top + 50 >= gameHeight - 50 && !balloon.classList.contains('crossed-line')) {
-                        balloon.classList.add('crossed-line');
-                        balloon.remove();
-                        decreaseScore();
-                    }
                 }
-            }, 50);
+            }, difficulty === '3' ? 25 : 50);
         }
 
         function getRandomPosition() {
@@ -332,20 +333,11 @@
             const userAnswer = parseInt(document.getElementById('answer').value);
             const correctProblem = currentProblems.find(p => p.result === userAnswer);
             if (correctProblem) {
-                if (correctProblem.isEvent) {
-                    score += correctProblem.eventScore;
-                    showBonusScore(correctProblem.element, correctProblem.eventScore);
-                    playSound('event-sound');
-                } else {
-                    score++;
-                }
-                updateScore();
-                if (score % 10 === 0) {
-                    playSound('congratulations-sound');
-                }
+                let points = correctProblem.isEvent ? correctProblem.eventScore : correctProblem.baseScore;
+                updateScore(points);
                 shootStone(correctProblem.element);
                 currentProblems = currentProblems.filter(p => p !== correctProblem);
-                showFeedback(correctProblem.isEvent ? correctProblem.eventScore : 1);
+                showFeedback(points);
             }
             document.getElementById('answer').value = '';
         }
@@ -377,27 +369,33 @@
         }
 
         function popBalloon(target) {
-            target.style.animation = 'pop 0.5s forwards';
-            playSound('pop-sound');
+            if (target.classList.contains('event-balloon')) {
+                target.style.animation = 'eventFirework 0.5s forwards';
+                playSound('event-pop-sound');
+            } else {
+                target.style.animation = 'firework 0.5s forwards';
+                playSound('pop-sound');
+            }
             setTimeout(() => {
                 target.remove();
             }, 500);
         }
 
-        function updateScore() {
+        function updateScore(points) {
+            const prevScore = score;
+            score += points;
             document.getElementById('score').textContent = `점수: ${score}`;
-        }
-
-        function decreaseScore() {
-            score--;
-            updateScore();
+            if (Math.floor(prevScore / 10) < Math.floor(score / 10)) {
+                playSound('cheer-sound');
+            }
         }
 
         function updateTime() {
             if (!isPaused) {
                 const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
-                document.getElementById('time').textContent = `시간: ${elapsedTime}초`;
-                if (elapsedTime >= 60) {
+                const remainingTime = Math.max(0, 60 - elapsedTime);
+                document.getElementById('time').textContent = `시간: ${remainingTime}초`;
+                if (remainingTime === 0) {
                     endGame();
                 }
             }
@@ -408,8 +406,12 @@
             clearInterval(gameInterval);
             clearInterval(timerInterval);
             const playerName = document.getElementById('player-name').value;
-            alert(`게임 종료! ${playerName}님의 최종 점수: ${score}`);
-            updateRecords(playerName, score);
+            let finalScore = score;
+            if (missedBalloons === 0) {
+                finalScore *= 2;
+            }
+            alert(`게임 종료! ${playerName}님의 최종 점수: ${finalScore}`);
+            updateRecords(playerName, finalScore);
             resetGame();
         }
 
@@ -463,6 +465,12 @@
             feedback.textContent = `${feedbacks[Math.floor(Math.random() * feedbacks.length)]} +${points}점!`;
             gameArea.appendChild(feedback);
             currentFeedback = feedback;
+            setTimeout(() => {
+                if (currentFeedback === feedback) {
+                    currentFeedback.remove();
+                    currentFeedback = null;
+                }
+            }, 1000);
         }
 
         function showBonusScore(target, score) {
@@ -477,8 +485,10 @@
 
         function playSound(id) {
             const sound = document.getElementById(id);
-            sound.currentTime = 0;
-            sound.play();
+            if (sound) {
+                sound.currentTime = 0;
+                sound.play().catch(e => console.error("Error playing sound:", e));
+            }
         }
 
         document.getElementById('answer').addEventListener('keyup', function(event) {
@@ -487,10 +497,21 @@
             }
         });
 
-        // 페이지 로드 시 기록 불러오기
-        window.onload = loadRecords;
+        // 모바일 환경에서 키보드가 올라올 때 게임 영역 크기 조정
+        function resizeGameArea() {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+            gameArea.style.height = `calc(var(--vh, 1vh) * 60)`;
+        }
+
+        window.addEventListener('resize', resizeGameArea);
+        window.addEventListener('orientationchange', resizeGameArea);
+
+        // 페이지 로드 시 기록 불러오기 및 게임 영역 크기 조정
+        window.onload = () => {
+            loadRecords();
+            resizeGameArea();
+        };
     </script>
 </body>
 </html>
-"""
-
