@@ -66,11 +66,10 @@
         }
         #bottom-line {
             position: absolute;
-            bottom: 60px;
+            bottom: 50px;
             width: 100%;
             height: 2px;
             background-color: red;
-}
         }
         #slingshot {
             position: absolute;
@@ -180,6 +179,8 @@
     <audio id="pop-sound" src="https://www.soundjay.com/misc/sounds/balloon-popping-1.mp3"></audio>
     <audio id="cheer-sound" src="https://www.soundjay.com/human/sounds/applause-01.mp3"></audio>
     <audio id="wow-sound" src="https://www.soundjay.com/human/sounds/man-says-wow-1.mp3"></audio>
+    <audio id="event-sound" src="https://www.soundjay.com/human/sounds/cheering-6.mp3"></audio>
+    <audio id="congratulations-sound" src="https://www.soundjay.com/human/sounds/cheer-8.mp3"></audio>
 
     <script>
         let gameInterval;
@@ -195,7 +196,6 @@
         const gameArea = document.getElementById('game-area');
         const gameWidth = gameArea.offsetWidth;
         const gameHeight = gameArea.offsetHeight;
-        const topLineY = 60;
 
         function loadRecords() {
             const savedRecords = localStorage.getItem('gugudan_records');
@@ -226,7 +226,7 @@
         function resetGame() {
             clearInterval(gameInterval);
             clearInterval(timerInterval);
-            document.getElementById('game-area').innerHTML = '<div id="top-line"></div><div id="slingshot"></div>';
+            document.getElementById('game-area').innerHTML = '<div id="bottom-line"></div><div id="slingshot"></div>';
             currentProblems = [];
             score = 0;
             balloonCount = 0;
@@ -280,31 +280,30 @@
             gameArea.appendChild(balloon);
 
             let fall = setInterval(() => {
-                if (!isGameRunning || isPaused) {
-                    return;
+                if (!isGameRunning || isPaused) return;
+                let top = parseInt(balloon.style.top);
+                if (top >= gameHeight - 50) {
+                    clearInterval(fall);
+                    balloon.remove();
+                    currentProblems = currentProblems.filter(p => p.element !== balloon);
+                } else {
+                    let increment = 0.5;
+                    switch (speed) {
+                        case 'medium': increment = 1; break;
+                        case 'hard': increment = 2; break;
+                        case 'extreme': increment = 4; break;
+                        case 'hell': increment = 8; break;
+                    }
+                    if (difficulty === '3') increment *= 2;
+                    balloon.style.top = `${top + increment}px`;
+                    if (top + 50 >= gameHeight - 50 && !balloon.classList.contains('crossed-line')) {
+                        balloon.classList.add('crossed-line');
+                        balloon.remove();
+                        decreaseScore();
+                    }
+                }
+            }, 50);
         }
-        let top = parseInt(balloon.style.top);
-        if (top >= gameHeight - 50) {
-            clearInterval(fall);
-            balloon.remove();
-            currentProblems = currentProblems.filter(p => p.element !== balloon);
-        } else {
-            let increment = 0.5;
-            switch (speed) {
-                case 'medium': increment = 1; break;
-                case 'hard': increment = 2; break;
-                case 'extreme': increment = 4; break;
-                case 'hell': increment = 8; break;
-            }
-            if (difficulty === '3') increment *= 2;
-            balloon.style.top = `${top + increment}px`;
-            if (top + 50 >= gameHeight - 60 && !balloon.classList.contains('crossed-line')) {
-                balloon.classList.add('crossed-line');
-                decreaseHealth();
-            }
-        }
-    }, 50);
-}
 
         function getRandomPosition() {
             let x, y;
@@ -336,13 +335,13 @@
                 if (correctProblem.isEvent) {
                     score += correctProblem.eventScore;
                     showBonusScore(correctProblem.element, correctProblem.eventScore);
-                    playSound('wow-sound');
+                    playSound('event-sound');
                 } else {
                     score++;
                 }
                 updateScore();
-                if (score % 5 === 0) {
-                    playSound('cheer-sound');
+                if (score % 10 === 0) {
+                    playSound('congratulations-sound');
                 }
                 shootStone(correctProblem.element);
                 currentProblems = currentProblems.filter(p => p !== correctProblem);
@@ -389,12 +388,9 @@
             document.getElementById('score').textContent = `점수: ${score}`;
         }
 
-        function decreaseHealth() {
-            // 여기서 체력 감소 로직을 구현합니다.
-            // 예를 들어, 체력이 0이 되면 게임을 종료합니다.
-            if (health <= 0) {
-                endGame();
-            }
+        function decreaseScore() {
+            score--;
+            updateScore();
         }
 
         function updateTime() {
@@ -403,7 +399,7 @@
                 document.getElementById('time').textContent = `시간: ${elapsedTime}초`;
                 if (elapsedTime >= 60) {
                     endGame();
-					}
+                }
             }
         }
 
@@ -496,3 +492,5 @@
     </script>
 </body>
 </html>
+"""
+
