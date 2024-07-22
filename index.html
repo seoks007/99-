@@ -247,6 +247,7 @@
     <audio id="pop-sound" src="https://www.soundjay.com/misc/sounds/balloon-popping-1.mp3"></audio>
     <audio id="event-pop-sound" src="https://www.soundjay.com/misc/sounds/balloon-popping-2.mp3"></audio>
     <audio id="cheer-sound" src="https://www.soundjay.com/human/sounds/applause-01.mp3"></audio>
+    <audio id="background-music" loop></audio>
 
     <script>
         let gameInterval;
@@ -265,6 +266,27 @@
         const gameSetup = document.getElementById('game-setup');
         const gameContainer = document.getElementById('game-container');
         const customKeyboard = document.getElementById('custom-keyboard');
+        const backgroundMusic = document.getElementById('background-music');
+
+        const musicFiles = [
+            'https://github.com/seoks007/game-music1/raw/main/A.mp3',
+            'https://github.com/seoks007/game-music1/raw/main/B.mp3',
+            'https://github.com/seoks007/game-music1/raw/main/C.mp3',
+            'https://github.com/seoks007/game-music1/raw/main/D.mp3',
+            'https://github.com/seoks007/game-music1/raw/main/E.mp3'
+        ];
+
+        function playBackgroundMusic() {
+            const randomIndex = Math.floor(Math.random() * musicFiles.length);
+            const selectedMusic = musicFiles[randomIndex];
+            backgroundMusic.src = selectedMusic;
+            backgroundMusic.play().catch(e => console.log("Audio play failed:", e));
+        }
+
+        function stopBackgroundMusic() {
+            backgroundMusic.pause();
+            backgroundMusic.currentTime = 0;
+        }
 
         function startGame() {
             if (isGameRunning) return;
@@ -295,6 +317,8 @@
             gameInterval = setInterval(createBalloon, intervalTime);
             timerInterval = setInterval(updateTime, 1000);
             startTime = Date.now();
+
+            playBackgroundMusic();
         }
 
         function resetGame() {
@@ -509,6 +533,7 @@
             gameSetup.style.display = 'flex';
             gameContainer.style.display = 'none';
             customKeyboard.style.display = 'none';
+            stopBackgroundMusic();
         }
 
         function updateRecords(playerName, finalScore) {
@@ -538,6 +563,11 @@
             isPaused = !isPaused;
             const pauseBtn = document.getElementById('pause-btn');
             pauseBtn.textContent = isPaused ? "계속하기" : "일시정지";
+            if (isPaused) {
+                stopBackgroundMusic();
+            } else {
+                playBackgroundMusic();
+            }
         }
 
         function showFeedback(points) {
